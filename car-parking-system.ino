@@ -1,11 +1,10 @@
 #include <LiquidCrystal_I2C.h>
 
-LiquidCrystal_I2C lcd(0x27, 16, 2); // set the LCD address to 0x27 for a 16 chars and 2 line display
+LiquidCrystal_I2C lcd(0x27, 16, 2);
 
 #include <Servo.h>
 
-Servo myservo; // create servo object to control a servo
-// twelve servo objects can be created on most boards
+Servo myservo;
 
 int servoPin = 6;
 int IRSensorInPin = 2;
@@ -25,7 +24,7 @@ void setup()
   closeGate();
   Serial.println(count);
   attachInterrupt(digitalPinToInterrupt(IRSensorInPin), car_in, CHANGE);
-  attachInterrupt(digitalPinToInterrupt(IRSensorOutPin), car_out, RISING);
+  attachInterrupt(digitalPinToInterrupt(IRSensorOutPin), car_out, CHANGE);
 
   lcd.init();
   lcd.clear();
@@ -40,17 +39,21 @@ void setup()
 bool car_at_gate = false;
 bool car_in_gate = false;
 bool car_out_gate = false;
+bool car_at_out_gate = false;
 
 void car_in()
 {
+
   delay(100);
   if (digitalRead(IRSensorInPin) == 1)
   {
     car_in_gate = true;
+    Serial.println("car in");
   }
   else
   {
     car_at_gate = true;
+    Serial.println("car gate");
   }
 }
 
@@ -59,18 +62,17 @@ void car_out()
   delay(100);
   if (digitalRead(IRSensorOutPin) == 1)
   {
-    car_out_gate = true;
+    if (car_at_out_gate)
+    {
+      car_out_gate = true;
+      car_at_out_gate = false;
+      Serial.println("car out");
+    }
   }
-}
-
-void openGate()
-{
-  myservo.write(90);
-}
-
-void closeGate()
-{
-  myservo.write(0);
+  else
+  {
+    car_at_out_gate = true;
+  }
 }
 
 void display_lcd(String text1, String text2 = "")
@@ -82,17 +84,50 @@ void display_lcd(String text1, String text2 = "")
   lcd.print(text1);
   lcd.setCursor(0, 1);
   lcd.print(text2);
+  Serial.println(text1 + " " + text2);
 }
 
-void display_count()
+void display_count(String message = "")
 {
+  display_lcd("  Net Space: " + String(max_car_count - count), "Cars:" + String(count) + "  " + message);
+}
 
-  display_lcd(" Net Space: " + String(max_car_count - count), "Cars: " + String(count));
+void openGate()
+{
+  myservo.write(90);
+  display_count(" Opening");
+  Serial.println("gate open");
+}
+
+void closeGate()
+{
+  myservo.write(0);
+  Serial.println("gate close");
 }
 
 void loop()
 {
-  delay(50);
+  delay(300);
+
+  if (car_out_gate)
+  {
+    if (count)
+    {
+
+      if (digitalRead(IRSensorOutPin) == 1)
+      {
+        count--;
+        display_count();
+
+        if (digitalRead(IRSensorInPin) == 0)
+        {
+          car_at_gate = true;
+        }
+      }
+
+      car_out_gate = false;
+    }
+  }
 
   if (car_at_gate)
   {
@@ -108,28 +143,25 @@ void loop()
     car_at_gate = false;
   }
 
-  
   if (car_in_gate)
   {
-    if (count < max_car_count)
+    delay(100);
+    if (digitalRead(IRSensorInPin) == 1)
     {
-      delay(2000);
-      closeGate();
-      count++;
-      display_count();
+      if (count < max_car_count)
+      {
+        display_count(" Closing");
+        delay(2000);
+        closeGate();
+        count++;
+        display_count();
+      }
+      car_in_gate = false;
+      car_at_gate = false;
     }
-    car_in_gate = false;
   }
-
-
-  if (car_out_gate)
+  else
   {
-    if (count)
-    {
-      count--;
-      display_count();
-    }
-
-    car_out_gate = false;
+    car_in_gate = false;
   }
 }
