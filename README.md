@@ -1,3 +1,3 @@
-# car-parking-system
+# Arduino Car Parking System
 
-IM Project Husnain, Nafay ME11A
+IM Project
